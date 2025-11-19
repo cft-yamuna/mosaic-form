@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Camera, Upload } from 'lucide-react';
 import { supabase } from './lib/supabase';
+import { io, Socket } from 'socket.io-client';
 
 const MESSAGES = [
   'You make SBER shine brighter!',
@@ -38,6 +39,7 @@ function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const socketRef = useRef<Socket | null>(null);
 
   const startCamera = async () => {
     try {
@@ -59,6 +61,42 @@ function App() {
       streamRef.current = null;
     }
   };
+
+  useEffect(() => {
+    // Initialize socket connection
+    const SOCKET_URL = 'http://localhost:3000'; // Replace with your socket server URL
+
+    console.log('Attempting to connect to socket server at:', SOCKET_URL);
+
+    socketRef.current = io(SOCKET_URL, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+
+    socketRef.current.on('connect', () => {
+      console.log('✅ Socket connected successfully! ID:', socketRef.current?.id);
+    });
+
+    socketRef.current.on('connect_error', (error) => {
+      console.error('❌ Socket connection error:', error.message);
+      console.log('Make sure your socket server is running at:', SOCKET_URL);
+    });
+
+    socketRef.current.on('disconnect', (reason) => {
+      console.log('⚠️ Socket disconnected. Reason:', reason);
+    });
+
+    socketRef.current.on('reconnect_attempt', (attemptNumber) => {
+      console.log(`🔄 Reconnection attempt #${attemptNumber}`);
+    });
+
+    return () => {
+      console.log('🔌 Disconnecting socket...');
+      socketRef.current?.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     if (step === 'capture') {
@@ -187,9 +225,23 @@ function App() {
   };
 
   const emitSocket = (userId: string) => {
-    const payload = { event: 'imagesent', data: { userId } };
-    console.log('Socket emitting payload:', payload);
-    console.log('Socket sending user id:', userId);
+    console.log('📤 Attempting to emit socket event...');
+    console.log('Socket ref exists:', !!socketRef.current);
+    console.log('Socket connected:', socketRef.current?.connected);
+
+    if (socketRef.current && socketRef.current.connected) {
+      const payload = { userId };
+      socketRef.current.emit('imagesent', payload);
+      console.log('✅ Socket emitted event "imagesent" with payload:', payload);
+      console.log('User ID sent:', userId);
+    } else {
+      console.error('❌ Socket is not connected. Cannot emit event.');
+      console.log('Socket status:', {
+        exists: !!socketRef.current,
+        connected: socketRef.current?.connected,
+        id: socketRef.current?.id
+      });
+    }
   };
 
   return (
