@@ -123,12 +123,32 @@ function App() {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+
+      // Get video dimensions
+      const videoWidth = video.videoWidth;
+      const videoHeight = video.videoHeight;
+
+      // Calculate square size (use the smaller dimension)
+      const size = Math.min(videoWidth, videoHeight);
+
+      // Set canvas to square
+      canvas.width = size;
+      canvas.height = size;
+
+      // Calculate crop position to center the image
+      const offsetX = (videoWidth - size) / 2;
+      const offsetY = (videoHeight - size) / 2;
+
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        ctx.drawImage(video, 0, 0);
-        const imageData = canvas.toDataURL('image/jpeg');
+        // Draw the cropped square image
+        ctx.drawImage(
+          video,
+          offsetX, offsetY, size, size,  // Source rectangle (crop from center)
+          0, 0, size, size                // Destination rectangle (full canvas)
+        );
+
+        const imageData = canvas.toDataURL('image/jpeg', 0.9); // 0.9 quality
         setCapturedImage(imageData);
         setStep('preview');
         stopCamera();
@@ -150,8 +170,38 @@ function App() {
     if (file) {
       const reader = new FileReader();
       reader.onload = (event) => {
-        setCapturedImage(event.target?.result as string);
-        setStep('preview');
+        const img = new Image();
+        img.onload = () => {
+          if (canvasRef.current) {
+            const canvas = canvasRef.current;
+
+            // Calculate square size (use the smaller dimension)
+            const size = Math.min(img.width, img.height);
+
+            // Set canvas to square
+            canvas.width = size;
+            canvas.height = size;
+
+            // Calculate crop position to center the image
+            const offsetX = (img.width - size) / 2;
+            const offsetY = (img.height - size) / 2;
+
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              // Draw the cropped square image
+              ctx.drawImage(
+                img,
+                offsetX, offsetY, size, size,  // Source rectangle (crop from center)
+                0, 0, size, size                // Destination rectangle (full canvas)
+              );
+
+              const imageData = canvas.toDataURL('image/jpeg', 0.9); // 0.9 quality
+              setCapturedImage(imageData);
+              setStep('preview');
+            }
+          }
+        };
+        img.src = event.target?.result as string;
       };
       reader.readAsDataURL(file);
     }
@@ -280,7 +330,6 @@ function App() {
               ref={fileInputRef}
               type="file"
               accept="image/*"
-              capture="user"
               onChange={handleFileUpload}
               className="hidden"
             />
@@ -298,7 +347,7 @@ function App() {
 
         {step === 'preview' && capturedImage && (
           <>
-            <div className="relative bg-white  overflow-hidden mb-6" style={{ aspectRatio: '3/4' }}>
+            <div className="relative bg-white overflow-hidden mb-6" style={{ aspectRatio: '1/1' }}>
               <img
                 src={capturedImage}
                 alt="Captured selfie"
