@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { Camera } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Camera, Upload } from 'lucide-react';
 import { supabase } from './lib/supabase';
 
 const MESSAGES = [
@@ -32,6 +32,7 @@ function App() {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [randomMessage, setRandomMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCaptureOptions, setShowCaptureOptions] = useState(false);
   const BUCKET_NAME = 'mosaic';
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -59,6 +60,27 @@ function App() {
     }
   };
 
+  useEffect(() => {
+    if (step === 'capture') {
+      setShowCaptureOptions(true);
+    }
+    return () => {
+      stopCamera();
+    };
+  }, [step]);
+
+  useEffect(() => {
+    if (step === 'thankyou') {
+      const timer = setTimeout(() => {
+        setCapturedImage(null);
+        setRandomMessage('');
+        setStep('capture');
+      }, 500000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [step]);
+
   const capturePhoto = () => {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
@@ -73,6 +95,15 @@ function App() {
         setStep('preview');
         stopCamera();
       }
+    }
+  };
+
+  const handleCaptureOption = (option: 'photo' | 'gallery') => {
+    setShowCaptureOptions(false);
+    if (option === 'photo') {
+      startCamera();
+    } else if (option === 'gallery' && fileInputRef.current) {
+      fileInputRef.current.click();
     }
   };
 
@@ -91,7 +122,6 @@ function App() {
   const retake = () => {
     setCapturedImage(null);
     setStep('capture');
-    startCamera();
   };
 
   const submitPhoto = async () => {
@@ -157,38 +187,39 @@ function App() {
   };
 
   const emitSocket = (userId: string) => {
-    console.log('Socket emit: imagesent', { userId });
+    const payload = { event: 'imagesent', data: { userId } };
+    console.log('Socket emitting payload:', payload);
+    console.log('Socket sending user id:', userId);
   };
 
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-start pt-8 px-4 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-teal-500/20 via-transparent to-blue-500/20 pointer-events-none"></div>
-      <div className="absolute top-20 left-10 w-64 h-64 bg-teal-400/30 rounded-full blur-3xl"></div>
-      <div className="absolute bottom-20 right-10 w-80 h-80 bg-cyan-400/20 rounded-full blur-3xl"></div>
+    <>
+      <div
+        className="min-h-screen bg-black flex flex-col items-center justify-start pt-8 px-4 relative overflow-hidden"
+        style={{
+          backgroundImage: step === 'thankyou' ? 'url(/final.png)' : 'url(/start.png)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat'
+        }}
+      >
 
-      <div className="relative z-10 w-full max-w-md">
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
-            <Camera className="w-6 h-6 text-black" />
+        <div className="relative z-10 w-full max-w-md">
+          <div className={`flex items-center justify-center mb-20 ${step === 'thankyou' ? 'mt-16' : ''}`}>
+            <img src="/logo.png" alt="SBER 15 Banking in India" className="h-12 object-contain mx-auto" />
           </div>
-          <div>
-            <span className="text-white font-bold text-2xl">SBER</span>
-            <span className="text-white text-sm ml-2">15 banking in India</span>
-          </div>
-        </div>
 
         {step === 'capture' && (
           <>
-            <h2 className="text-white text-3xl font-bold mb-6">Snap a quick selfie</h2>
+            <h2 className="text-white text-3xl  mb-6 text-center">Snap a quick selfie</h2>
 
-            <div className="relative bg-white rounded-lg overflow-hidden mb-6" style={{ aspectRatio: '9/16' }}>
+            <div className="relative bg-white  overflow-hidden mb-6" style={{ aspectRatio: '3/4' }}>
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
                 className="w-full h-full object-cover"
-                onLoadedMetadata={startCamera}
               />
               <canvas ref={canvasRef} className="hidden" />
             </div>
@@ -202,24 +233,20 @@ function App() {
               className="hidden"
             />
 
-            <button
-              onClick={() => {
-                if (videoRef.current && videoRef.current.srcObject) {
-                  capturePhoto();
-                } else {
-                  fileInputRef.current?.click();
-                }
-              }}
-              className="w-full bg-black text-white text-xl font-semibold py-4 px-8 rounded-full border-2 border-white hover:bg-white hover:text-black transition-colors"
-            >
-              Capture
-            </button>
+            <div className="flex justify-center gap-4 mb-6">
+              <button
+                onClick={capturePhoto}
+                className="w-1/2 bg-black text-white text-xl font-bold py-4 px-4 rounded-xl hover:bg-white hover:text-black transition-colors"
+              >
+                Capture
+              </button>
+            </div>
           </>
         )}
 
         {step === 'preview' && capturedImage && (
           <>
-            <div className="relative bg-white rounded-lg overflow-hidden mb-6" style={{ aspectRatio: '9/16' }}>
+            <div className="relative bg-white  overflow-hidden mb-6" style={{ aspectRatio: '3/4' }}>
               <img
                 src={capturedImage}
                 alt="Captured selfie"
@@ -231,14 +258,14 @@ function App() {
               <button
                 onClick={retake}
                 disabled={isSubmitting}
-                className="flex-1 bg-black text-white text-xl font-semibold py-4 px-8 rounded-full border-2 border-white hover:bg-white hover:text-black transition-colors disabled:opacity-50"
+                className="flex-1 bg-black text-white text-xl font-bold py-4 px-8 rounded-xl hover:bg-white hover:text-black transition-colors disabled:opacity-50"
               >
                 Retake
               </button>
               <button
                 onClick={submitPhoto}
                 disabled={isSubmitting}
-                className="flex-1 bg-black text-white text-xl font-semibold py-4 px-8 rounded-full border-2 border-white hover:bg-white hover:text-black transition-colors disabled:opacity-50"
+                className="flex-1 bg-black text-white text-xl font-bold py-4 px-8 rounded-xl hover:bg-white hover:text-black transition-colors disabled:opacity-50"
               >
                 {isSubmitting ? 'Submitting...' : 'Submit'}
               </button>
@@ -247,22 +274,52 @@ function App() {
         )}
 
         {step === 'thankyou' && (
-          <div className="text-center">
-            <h2 className="text-white text-5xl font-bold mb-8">You look great!</h2>
-            <p className="text-white text-xl leading-relaxed">
-              Check the LED screen<br />
-              to see your image in<br />
+          <div className="flex items-center justify-center min-h-[60vh] px-8">
+            {randomMessage && (
+              <div className="text-center p-6 bg-[#005950]/30 backdrop-blur-sm rounded-3xl border border-white/20">
+                <p className="text-4xl font-semibold mb-8" style={{ color: '#FFC300' }}>{randomMessage}</p>
+                 <p className="text-white text-md leading-relaxed">
+              Check the LED screen
+              to see <br /> your image in
               the mosaic.
             </p>
-            {randomMessage && (
-              <div className="mt-12 p-6 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
-                <p className="text-teal-300 text-2xl font-semibold">{randomMessage}</p>
               </div>
             )}
           </div>
         )}
+        </div>
       </div>
-    </div>
+      {showCaptureOptions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
+          <div className="bg-black rounded-2xl w-full max-w-sm text-center shadow-2xl border border-white/20 overflow-hidden">
+            <button
+              onClick={() => handleCaptureOption('photo')}
+              className="w-full text-white text-lg font-medium py-5 hover:bg-white/10 transition-colors flex items-center justify-center gap-3"
+            >
+              <Camera className="w-6 h-6" />
+              Capture your Image
+            </button>
+            <div className="border-t border-white/20">
+              <button
+                onClick={() => handleCaptureOption('gallery')}
+                className="w-full text-white text-lg font-medium py-5 hover:bg-white/10 transition-colors flex items-center justify-center gap-3"
+              >
+                <Upload className="w-6 h-6" />
+                Upload from Gallery
+              </button>
+            </div>
+            {/* <div className="border-t border-white/20">
+              <button
+                onClick={() => setShowCaptureOptions(false)}
+                className="w-full text-white text-base font-medium py-5 hover:bg-white/10 transition-colors"
+              >
+                Cancel
+              </button>
+            </div> */}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
