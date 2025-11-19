@@ -113,7 +113,7 @@ function App() {
         setCapturedImage(null);
         setRandomMessage('');
         setStep('capture');
-      }, 500000);
+      }, 5000);
 
       return () => clearTimeout(timer);
     }
