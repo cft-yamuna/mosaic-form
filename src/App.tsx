@@ -64,7 +64,7 @@ function App() {
 
   useEffect(() => {
     // Initialize socket connection
-    const SOCKET_URL = 'http://localhost:3000'; // Replace with your socket server URL
+    const SOCKET_URL = 'https://octopus-app-2-3cpus.ondigitalocean.app'; // Replace with your socket server URL
 
     console.log('Attempting to connect to socket server at:', SOCKET_URL);
 
